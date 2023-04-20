@@ -12,40 +12,42 @@ from os import path
 BIN = path.dirname(__file__)+'/bin'
 
 
-# this function displays a 3D point cloud using the potree viewer
-def generate_cloud_for_display(xyz):
+def generate_cloud_for_display(xyz, rgb=None, name=None, vb=True, clean=False):
 	"""
 	Display a point cloud inside a jupyter IFrame
-
 	Arguments:
-		xyz: a Nx3 matrix containing the 3D positions of N points
+	xyz: a Nx3 matrix containing the 3D positions of N points.
+	rgb: an optional Nx3 array containing the RGB colours (0-255) of each point.
+	name: a unique name for this point cloud in the potree viewer.
+	vb: True if the command passed to potree-converter should be plotted.
 	"""
 	import os
 	import shutil
 	import numpy as np
-
-	# note: if you want to add color intensities to your points, use a Nx4 array and then change
-	# the "-parse" option below to xyzi.  Similarly for RGB color, save an Nx6 array
-
-	# clear output dir
-	#try:
-	#	shutil.rmtree('point_clouds')
-	#except FileNotFoundError:
-	#	pass
 	import uuid
-	unique_dirname = str(uuid.uuid4())[:6]
+
+	if name is None:
+		unique_dirname = str(uuid.uuid4())[:6]
+	else:
+		unique_dirname = name
 
 	# dump data and convert
-	np.savetxt(".tmp.txt", xyz)
-	print("{BIN}/PotreeConverter .tmp.txt -f xyz -o point_clouds -p {idd} --material ELEVATION --edl-enabled --overwrite".format(BIN=BIN, idd=unique_dirname))
-	os.system("{BIN}/PotreeConverter .tmp.txt -f xyz -o point_clouds -p {idd} --material ELEVATION --edl-enabled --overwrite".format(BIN=BIN, idd=unique_dirname))
-
+	if type(rgb) == np.ndarray: # RGB visualisation
+		np.savetxt(".tmp.txt", np.hstack([xyz, rgb]))
+		# create call to potreeconverter
+		cmd = "{BIN}/PotreeConverter .tmp.txt -f xyzrgb -o point_clouds -p {idd} --material RGB --edl-enabled --overwrite".format(BIN=BIN, idd=unique_dirname)
+	else: # XYZ visualisation
+		np.savetxt(".tmp.txt", xyz )
+		cmd = "{BIN}/PotreeConverter .tmp.txt -f xyz -o point_clouds -p {idd} --material ELEVATION --edl-enabled --overwrite".format(BIN=BIN, idd=unique_dirname)
+	
+	if vb:
+		print(cmd) # print it for debug
+	r=os.system(cmd) # run command
+	if vb:
+		print("PotreeConverter returned %s (0 means no errors occured)." % r)
 
 	return ('{idd}'.format(idd=unique_dirname))
  
-
-
-
 
 def display_cloud(path, width=980, height=800):
 	"""
@@ -57,7 +59,16 @@ def display_cloud(path, width=980, height=800):
 	from IPython.display import IFrame
 	return IFrame('point_clouds/'+path+'.html', width=width, height=height)
 
-
+def cleanup():
+	"""
+	Delete files associated with potree viewer.
+	"""
+	# clear output dir
+	import shutil
+	try:
+		shutil.rmtree('point_clouds')
+	except FileNotFoundError:
+		pass
 
 
 port = 0
